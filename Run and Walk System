@@ -1,0 +1,102 @@
+local player = game.Players.LocalPlayer
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local walkingSpeed = 16  
+local runningSpeed = 32  
+
+local humanoid
+local walkTrack
+local runTrack
+
+local walkAnimId = "" ---Id Right here
+local runAnimId = "" ---Id Right here
+
+local isRunning = false
+
+local function loadAnimations()
+	if not humanoid then return end
+
+	local walkAnim = Instance.new("Animation")
+	walkAnim.AnimationId = walkAnimId
+	walkTrack = humanoid:LoadAnimation(walkAnim)
+	walkTrack.Priority = Enum.AnimationPriority.Movement
+
+	local runAnim = Instance.new("Animation")
+	runAnim.AnimationId = runAnimId
+	runTrack = humanoid:LoadAnimation(runAnim)
+	runTrack.Priority = Enum.AnimationPriority.Movement
+end
+
+local function stopAllAnimations()
+	if walkTrack and walkTrack.IsPlaying then
+		walkTrack:Stop()
+	end
+	if runTrack and runTrack.IsPlaying then
+		runTrack:Stop()
+	end
+end
+
+local function playWalk()
+	if runTrack and runTrack.IsPlaying then
+		runTrack:Stop()
+	end
+	if walkTrack and not walkTrack.IsPlaying then
+		walkTrack:Play()
+	end
+end
+
+local function playRun()
+	if walkTrack and walkTrack.IsPlaying then
+		walkTrack:Stop()
+	end
+	if runTrack and not runTrack.IsPlaying then
+		runTrack:Play()
+	end
+end
+
+local function toggleRunning()
+	if humanoid then
+		if isRunning then
+			humanoid.WalkSpeed = walkingSpeed
+			isRunning = false
+		else
+			humanoid.WalkSpeed = runningSpeed
+			isRunning = true
+		end
+	end
+end
+
+local function onCharacterAdded(character)
+	humanoid = character:WaitForChild("Humanoid")
+	humanoid.WalkSpeed = walkingSpeed
+	loadAnimations()
+	stopAllAnimations() 
+end
+
+player.CharacterAdded:Connect(onCharacterAdded)
+if player.Character then
+	onCharacterAdded(player.Character)
+end
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if not gameProcessed and input.KeyCode == Enum.KeyCode.LeftControl then
+		toggleRunning()
+	end
+end)
+
+RunService.Heartbeat:Connect(function()
+	if humanoid then
+		local speed = humanoid.MoveDirection.Magnitude * humanoid.WalkSpeed
+
+		if speed > 0 then
+			if isRunning then
+				playRun()
+			else
+				playWalk()
+			end
+		else
+			stopAllAnimations()
+		end
+	end
+end)
