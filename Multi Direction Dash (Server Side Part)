@@ -1,0 +1,105 @@
+-- Put Your dash animations inside the Server sided dash script. (Also, pay attention to the correct use of remote events.)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local DashEvent = ReplicatedStorage:WaitForChild("DashEvents"):WaitForChild("DashEvent")
+local Debris = game:GetService("Debris")
+local RunService = game:GetService("RunService")
+
+local DASH_FORCE = 110
+local DASH_DURATION = 0.25
+local SERVER_COOLDOWN = 0.6
+local lastUsed = {}
+local frontToggle = {}
+
+local function playAnim(humanoid, animObject)
+	if not humanoid or not animObject then return end
+	local track = humanoid:LoadAnimation(animObject)
+	if track then
+		track:Play()
+		return track
+	end
+end
+
+DashEvent.OnServerEvent:Connect(function(player, direction, shiftLocked)
+	if typeof(direction) ~= "Vector3" then return end
+	local uid = player.UserId
+	local now = tick()
+	if lastUsed[uid] and now - lastUsed[uid] < SERVER_COOLDOWN then return end
+	lastUsed[uid] = now
+
+	local character = player.Character
+	if not character then return end
+	local hrp = character:FindFirstChild("HumanoidRootPart")
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if not hrp or not humanoid then return end
+
+	local dir = direction
+	if dir.Magnitude == 0 then
+		dir = humanoid.MoveDirection
+	end
+
+	local animObject
+
+	if not shiftLocked then
+		frontToggle[uid] = not frontToggle[uid]
+		if frontToggle[uid] then
+			animObject = script:FindFirstChild("DashFrontRight")
+		else
+			animObject = script:FindFirstChild("DashFrontLeft")
+		end
+	else
+		local absX = math.abs(dir.X)
+		local absZ = math.abs(dir.Z)
+		if absZ >= absX then
+			if dir.Z < 0 then
+				frontToggle[uid] = not frontToggle[uid]
+				if frontToggle[uid] then
+					animObject = script:FindFirstChild("DashFrontRight")
+				else
+					animObject = script:FindFirstChild("DashFrontLeft")
+				end
+			else
+				animObject = script:FindFirstChild("DashBack")
+			end
+		else
+			if dir.X > 0 then
+				animObject = script:FindFirstChild("DashRight")
+			else
+				animObject = script:FindFirstChild("DashLeft")
+			end
+		end
+	end
+
+	playAnim(humanoid, animObject)
+
+	local bodyVel = Instance.new("BodyVelocity")
+	bodyVel.MaxForce = Vector3.new(1e5, 0, 1e5)
+	bodyVel.P = 1e4
+	bodyVel.Velocity = Vector3.zero
+	bodyVel.Parent = hrp
+
+	local elapsed = 0
+	local connection
+	connection = RunService.Heartbeat:Connect(function(dt)
+		elapsed += dt
+		if elapsed >= DASH_DURATION then
+			connection:Disconnect()
+			bodyVel:Destroy()
+			return
+		end
+
+		local moveDir = humanoid.MoveDirection
+		local vel
+		if moveDir.Magnitude > 0 then
+			vel = moveDir.Unit * DASH_FORCE
+		else
+			local look = hrp.CFrame.LookVector
+			vel = Vector3.new(look.X, 0, look.Z) * DASH_FORCE
+		end
+		
+		
+		vel = Vector3.new(vel.X, 0, vel.Z)
+		bodyVel.Velocity = vel
+	end)
+
+	Debris:AddItem(bodyVel, DASH_DURATION)
+end)
